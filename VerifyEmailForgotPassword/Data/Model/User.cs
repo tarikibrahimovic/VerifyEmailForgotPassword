@@ -1,8 +1,11 @@
-﻿namespace VerifyEmailForgotPassword.Model
+﻿using System.Security.Claims;
+
+namespace VerifyEmailForgotPassword.Model
 {
     public class User
     {
         public int Id { get; set; }
+        public string Username { get; set; }
         public string Email { get; set; } = string.Empty;
         public byte[] PasswordHash { get; set; } = new byte[32];
         public byte[] PassswordSalt { get; set; } = new byte[32];

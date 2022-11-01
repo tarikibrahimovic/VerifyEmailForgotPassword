@@ -1,6 +1,15 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using MailKit.Net.Smtp;
+using MailKit.Security;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
+using Microsoft.IdentityModel.Tokens;
+using MimeKit;
+using MimeKit.Text;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Security.Cryptography;
+using VerifyEmailForgotPassword.Data.ViewModel;
 
 namespace VerifyEmailForgotPassword.Controllers
 {
@@ -9,9 +18,57 @@ namespace VerifyEmailForgotPassword.Controllers
     public class UserController : ControllerBase
     {
         private readonly DataContext _context;
-        public UserController(DataContext context)
+        private IConfiguration _configuration;
+        public UserController(DataContext context, IConfiguration configuration)
         {
+            _configuration = configuration;
             _context = context;
+        }
+
+        //[HttpPost("send-mail")]
+        //public void SendEmail(string user)
+        //{
+        //    var email = new MimeMessage();
+        //    email.From.Add(MailboxAddress.Parse(_configuration.GetSection("Mail:From").Value));
+        //    email.To.Add(MailboxAddress.Parse(_configuration.GetSection("Mail:From").Value));
+        //    email.Subject = "Test Email Subject";
+        //    var mailText = $"<a href=\"{_configuration.GetSection("ClientAppUrl").Value}/{user}\">here</a>";
+        //    email.Body = new TextPart(TextFormat.Html) { Text = mailText };
+
+        //    using var smtp = new SmtpClient();
+        //    smtp.Connect("smtp.ethereal.email",
+        //                 587,
+        //                 SecureSocketOptions.StartTls);
+        //    //smtp.gmail.com ako se na gmail salje
+        //    smtp.Authenticate("rickey.kohler97@ethereal.email", "mEedpuwQb3rfbVfkSt");
+        //    smtp.Send(email);
+        //    smtp.Disconnect(true);
+        //}
+
+
+
+        private void SendEmail(string recipientEmail, string emailSubject, string emailText)
+        {
+            var email = new MimeMessage();
+            email.From.Add(MailboxAddress.Parse(_configuration.GetSection("Mail:From").Value));
+            email.To.Add(MailboxAddress.Parse(recipientEmail));
+            email.Subject = emailSubject;
+            email.Body = new TextPart(TextFormat.Html)
+            {
+                Text = emailText
+            };
+            using var smtp = new SmtpClient();
+            smtp.Connect(
+                _configuration.GetSection("Mail:Smtp").Value,
+                int.Parse(_configuration.GetSection("Mail:Port").Value),
+                SecureSocketOptions.StartTls
+                );
+            smtp.Authenticate(
+                _configuration.GetSection("Mail:Username").Value,
+                _configuration.GetSection("Mail:Password").Value
+                );
+            smtp.Send(email);
+            smtp.Disconnect(true);
         }
 
         [HttpPost("register")]
@@ -19,12 +76,12 @@ namespace VerifyEmailForgotPassword.Controllers
         {
             if(_context.Users.Any(u => u.Email == request.Email))
             {
-                return BadRequest("User already exists.");
+                return BadRequest(new {message = "User already exists." });
             }
 
             CreatePasswordHash(request.Password, out byte[] passwordHash, out byte[] passwordSalt);
 
-            var user = new User
+            var user = new User  
             {
                 Email = request.Email,
                 PasswordHash = passwordHash,
@@ -34,7 +91,14 @@ namespace VerifyEmailForgotPassword.Controllers
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            return Ok("User seccesfully created!");
+            var emailText = $"<h1>Welcome to Fuji</h1>" +
+            $"<h3>Please click " +
+                $"<a href=\"{_configuration.GetSection("ClientAppUrl").Value}/{user.VerificationToken}\">here</a>" +
+                $" to confirm your account</h3>";
+            SendEmail("tarikibrahimovic2016@gmail.com", "Confirm your account", emailText);
+
+
+            return Ok( new {message = "User seccesfully created!" });
         }
 
         private void CreatePasswordHash(string password, out byte[] passwordHash, out byte[] passwordSalt)
@@ -58,29 +122,34 @@ namespace VerifyEmailForgotPassword.Controllers
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
             if(user == null)
             {
-                return BadRequest("user not found");
+                return BadRequest(new {message = "user not found" });
             }
 
             if(!VerifyPasswordHash(request.Password, user.PasswordHash, user.PassswordSalt))
             {
-                return BadRequest("Password is inncorect");
+                return BadRequest(new { message = "password incorect" });
             }
 
             if(user.VerifiedAt == null)
             {
-                return BadRequest("Not verified!");
+                return BadRequest(new { message = "not verified" });
             }
 
-            return Ok($"Welcome back, {user.Email} ");
+            string token = CreateToken(user);
+
+            return Ok(new {
+                message = $"welcome user: {user.Email}",
+                token = token
+            });
         }
 
         [HttpPost("verify")]
-        public async Task<IActionResult> Verify(string token)
+        public async Task<IActionResult> Verify([FromBody] VerifyVM token)
         {
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.VerificationToken == token);
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.VerificationToken == token.Token);
             if (user == null)
             {
-                return BadRequest("Invalid token");
+                return BadRequest("Invalid token"); 
             }
 
             user.VerifiedAt = DateTime.Now;
@@ -132,6 +201,34 @@ namespace VerifyEmailForgotPassword.Controllers
             await _context.SaveChangesAsync();
 
             return Ok("You may reset your password");
+        }
+
+
+        private string CreateToken(User user)
+        {
+            List<Claim> claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.Name, user.Username),
+                new Claim(ClaimTypes.Role, "Admin")
+
+                //ovo drugo je za role i dodaje se isto
+                //u weatherForecastController kod authorise da se stavlja koji role moze da pristupi
+                /*new Claim(ClaimTypes.Role, "Admin")*///ovako se daje nekome admin
+            };
+
+            var key = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(_configuration.GetSection("AppSettings:Token").Value));
+
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512Signature);
+
+            var token = new JwtSecurityToken(
+                claims: claims,
+                expires: DateTime.Now.AddDays(1),
+                signingCredentials: creds
+                );
+
+            var jwt = new JwtSecurityTokenHandler().WriteToken(token);
+
+            return jwt;
         }
     }
 }
