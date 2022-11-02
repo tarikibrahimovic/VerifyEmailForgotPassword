@@ -1,5 +1,6 @@
 ﻿using MailKit.Net.Smtp;
 using MailKit.Security;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -137,10 +138,12 @@ namespace VerifyEmailForgotPassword.Controllers
 
             string token = CreateToken(user);
 
-            return Ok(new {
+            return Ok(new
+            {
                 message = $"welcome user: {user.Email}",
                 token = token
             });
+            //return Ok(new { message = "Succesfully logined" });
         }
 
         [HttpPost("verify")]
@@ -183,6 +186,14 @@ namespace VerifyEmailForgotPassword.Controllers
             return Ok("You may reset your password");
         }
 
+        [HttpGet("get-message"), Authorize]
+
+        public async Task<IActionResult> GetMessage()
+        {
+            return Ok(new { message = "Bravo autorizovan si" });
+        }
+
+
         [HttpPost("reset-password")]
         public async Task<IActionResult> ResetPassword(ResetPasswordRequest request)
         {
@@ -208,8 +219,8 @@ namespace VerifyEmailForgotPassword.Controllers
         {
             List<Claim> claims = new List<Claim>
             {
-                new Claim(ClaimTypes.Name, user.Username),
-                new Claim(ClaimTypes.Role, "Admin")
+                new Claim(ClaimTypes.Name, user.Email),
+                //new Claim(ClaimTypes.Role, "Admin")
 
                 //ovo drugo je za role i dodaje se isto
                 //u weatherForecastController kod authorise da se stavlja koji role moze da pristupi
