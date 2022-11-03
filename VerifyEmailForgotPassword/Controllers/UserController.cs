@@ -10,6 +10,7 @@ using MimeKit.Text;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using VerifyEmailForgotPassword.Data.Model;
 using VerifyEmailForgotPassword.Data.ViewModel;
 
 namespace VerifyEmailForgotPassword.Controllers
@@ -20,10 +21,12 @@ namespace VerifyEmailForgotPassword.Controllers
     {
         private readonly DataContext _context;
         private IConfiguration _configuration;
-        public UserController(DataContext context, IConfiguration configuration)
+        private IHttpContextAccessor _acc;
+        public UserController(DataContext context, IConfiguration configuration, IHttpContextAccessor acc)
         {
             _configuration = configuration;
             _context = context;
+            _acc = acc;
         }
 
         //[HttpPost("send-mail")]
@@ -45,9 +48,6 @@ namespace VerifyEmailForgotPassword.Controllers
         //    smtp.Send(email);
         //    smtp.Disconnect(true);
         //}
-
-
-
         private void SendEmail(string recipientEmail, string emailSubject, string emailText)
         {
             var email = new MimeMessage();
@@ -71,6 +71,33 @@ namespace VerifyEmailForgotPassword.Controllers
             smtp.Send(email);
             smtp.Disconnect(true);
         }
+
+        [HttpPost("add-favorite"), Authorize]
+
+        public async Task<IActionResult> AddToFavorite(FavoritesVM favorite)
+        {
+
+            var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
+
+            var favSadrzaj = new Favorites
+            {
+                IdSadrzaja = favorite.IdSadrzaja,
+                Tip = favorite.Tip
+            };
+            _context.Favorites.Add(favSadrzaj);
+
+            var favUser = new User_Favorites
+            {
+                UserId = userId,
+                FavoriteId = favorite.IdSadrzaja
+            };
+           _context.Add(favUser);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Uspesno dodano" });
+
+        }
+
 
         [HttpPost("register")]
         public async Task<IActionResult> Register(UserRegisterRequest request)
@@ -219,13 +246,15 @@ namespace VerifyEmailForgotPassword.Controllers
         {
             List<Claim> claims = new List<Claim>
             {
-                new Claim(ClaimTypes.Name, user.Email),
+                new Claim(ClaimTypes.PrimarySid, user.Id.ToString()),
+                new Claim(ClaimTypes.Role, "Registered")
                 //new Claim(ClaimTypes.Role, "Admin")
 
                 //ovo drugo je za role i dodaje se isto
                 //u weatherForecastController kod authorise da se stavlja koji role moze da pristupi
                 /*new Claim(ClaimTypes.Role, "Admin")*///ovako se daje nekome admin
             };
+            //int.Parse(httpContextAccessor.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
 
             var key = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(_configuration.GetSection("AppSettings:Token").Value));
 

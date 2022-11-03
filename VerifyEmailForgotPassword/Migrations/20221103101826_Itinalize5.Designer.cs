@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using VerifyEmailForgotPassword.Data;
 
@@ -11,9 +12,10 @@ using VerifyEmailForgotPassword.Data;
 namespace VerifyEmailForgotPassword.Migrations
 {
     [DbContext(typeof(DataContext))]
-    partial class DataContextModelSnapshot : ModelSnapshot
+    [Migration("20221103101826_Itinalize5")]
+    partial class Itinalize5
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -71,68 +73,6 @@ namespace VerifyEmailForgotPassword.Migrations
                     b.ToTable("Favorites");
                 });
 
-            modelBuilder.Entity("VerifyEmailForgotPassword.Data.Model.Links", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"), 1L, 1);
-
-                    b.Property<int>("IdSadrzaja")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Link")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("TipSadrzaja")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("Link");
-                });
-
-            modelBuilder.Entity("VerifyEmailForgotPassword.Data.Model.LinkVotes", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"), 1L, 1);
-
-                    b.Property<int>("IdSadrzaja")
-                        .HasColumnType("int");
-
-                    b.Property<int>("LinkId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("TipSadrzaja")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("Vote")
-                        .HasColumnType("bit");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LinkId");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("Votes");
-                });
-
             modelBuilder.Entity("VerifyEmailForgotPassword.Data.Model.User_Favorites", b =>
                 {
                     b.Property<int>("Id")
@@ -182,10 +122,6 @@ namespace VerifyEmailForgotPassword.Migrations
                     b.Property<DateTime?>("ResetTokenExpires")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("Username")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("VerificationToken")
                         .HasColumnType("nvarchar(max)");
 
@@ -204,36 +140,6 @@ namespace VerifyEmailForgotPassword.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("VerifyEmailForgotPassword.Data.Model.Links", b =>
-                {
-                    b.HasOne("VerifyEmailForgotPassword.Model.User", "User")
-                        .WithMany("Linkovi")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("VerifyEmailForgotPassword.Data.Model.LinkVotes", b =>
-                {
-                    b.HasOne("VerifyEmailForgotPassword.Data.Model.Links", "Link")
-                        .WithMany("Votes")
-                        .HasForeignKey("LinkId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("VerifyEmailForgotPassword.Model.User", "User")
-                        .WithMany("Votes")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.Navigation("Link");
 
                     b.Navigation("User");
                 });
@@ -262,20 +168,11 @@ namespace VerifyEmailForgotPassword.Migrations
                     b.Navigation("User_Favorites");
                 });
 
-            modelBuilder.Entity("VerifyEmailForgotPassword.Data.Model.Links", b =>
-                {
-                    b.Navigation("Votes");
-                });
-
             modelBuilder.Entity("VerifyEmailForgotPassword.Model.User", b =>
                 {
                     b.Navigation("Komentar");
 
-                    b.Navigation("Linkovi");
-
                     b.Navigation("User_Favorites");
-
-                    b.Navigation("Votes");
                 });
 #pragma warning restore 612, 618
         }

@@ -30,10 +30,20 @@ namespace VerifyEmailForgotPassword.Data
                 .WithMany(f => f.User_Favorites)
                 .HasForeignKey(f => f.FavoriteId);
 
+            modelBuilder.Entity<LinkVotes>()
+                .HasOne(v => v.User)
+                .WithMany(u => u.Votes)
+                .HasForeignKey(v => v.UserId)
+                .OnDelete(DeleteBehavior.NoAction);
+
             //ovo je za 2 dela tabele, definisanje knjiga i autora
-        }
+    }
 
         public DbSet<User> Users => Set<User>();
         public DbSet<Favorites> Favorites => Set<Favorites>();
+        public DbSet<User_Favorites> UserFavorites => Set<User_Favorites>();
+        public DbSet<Comment> Comments => Set<Comment>();
+        public DbSet<Links> Link => Set<Links>();
+        public DbSet<LinkVotes> Votes => Set<LinkVotes>();
     }
 }
