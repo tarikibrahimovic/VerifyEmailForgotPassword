@@ -107,10 +107,16 @@ namespace VerifyEmailForgotPassword.Controllers
                 return BadRequest(new {message = "User already exists." });
             }
 
+            if(_context.Users.Any(u => u.Username == request.Username))
+            {
+                return BadRequest(new { message = "Username is taken" });
+            }
+
             CreatePasswordHash(request.Password, out byte[] passwordHash, out byte[] passwordSalt);
 
             var user = new User  
             {
+                Username = request.Username,
                 Email = request.Email,
                 PasswordHash = passwordHash,
                 PassswordSalt = passwordSalt,
@@ -123,7 +129,7 @@ namespace VerifyEmailForgotPassword.Controllers
             $"<h3>Please click " +
                 $"<a href=\"{_configuration.GetSection("ClientAppUrl").Value}/{user.VerificationToken}\">here</a>" +
                 $" to confirm your account</h3>";
-            SendEmail("tarikibrahimovic2016@gmail.com", "Confirm your account", emailText);
+            SendEmail(user.Email, "Confirm your account", emailText);
 
 
             return Ok( new {message = "User seccesfully created!" });
@@ -150,17 +156,17 @@ namespace VerifyEmailForgotPassword.Controllers
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
             if(user == null)
             {
-                return BadRequest(new {message = "user not found" });
+                return BadRequest(new {message = "User not found" });
             }
 
             if(!VerifyPasswordHash(request.Password, user.PasswordHash, user.PassswordSalt))
             {
-                return BadRequest(new { message = "password incorect" });
+                return BadRequest(new { message = "Something not right, try again" });
             }
 
             if(user.VerifiedAt == null)
             {
-                return BadRequest(new { message = "not verified" });
+                return BadRequest(new { message = "Not verified" });
             }
 
             string token = CreateToken(user);
@@ -185,7 +191,7 @@ namespace VerifyEmailForgotPassword.Controllers
             user.VerifiedAt = DateTime.Now;
             await _context.SaveChangesAsync();
 
-            return Ok("User verified!");
+            return Ok(new {message = "User Created"});
         }
 
         private bool VerifyPasswordHash(string password, byte[] passwordHash, byte[] passwordSalt)
