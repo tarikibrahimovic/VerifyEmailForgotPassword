@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using MimeKit;
 using MimeKit.Text;
+using Org.BouncyCastle.Asn1.Ocsp;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -173,11 +174,44 @@ namespace VerifyEmailForgotPassword.Controllers
 
             return Ok(new
             {
+                username = user.Username,
                 message = $"welcome user: {user.Email}",
                 token = token
             });
-            //return Ok(new { message = "Succesfully logined" });
         }
+
+        [HttpPost("change-password"), Authorize]
+
+        public async Task<IActionResult> ChangePassword([FromBody]ChangePassword change)
+        {
+            var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+
+            CreatePasswordHash(change.Password, out byte[] passwordHash, out byte[] passwordSalt);
+
+            user.PasswordHash = passwordHash;
+            user.PassswordSalt = passwordSalt;
+            _context.SaveChanges();
+
+            return Ok(new { message = "Password changed" });
+        }
+
+
+        [HttpDelete("delete-acc"), Authorize]
+
+        public async Task<IActionResult> DeleteUser(string password)
+        {
+            var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+            if (!VerifyPasswordHash(password, user.PasswordHash, user.PassswordSalt))
+            {
+                return BadRequest(new { message = "Something not right, try again" });
+            }
+            _context.Users.Remove(user);
+            _context.SaveChanges();
+            return Ok(new { message = "User removed" });
+        }
+
 
         [HttpPost("verify")]
         public async Task<IActionResult> Verify([FromBody] VerifyVM token)
@@ -209,14 +243,20 @@ namespace VerifyEmailForgotPassword.Controllers
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
             if (user == null)
             {
-                return BadRequest("User not found");
+                return BadRequest(new {message = "Email not found"});
             }
 
             user.PasswordResetToken = CreateRandomToken();
             user.ResetTokenExpires = DateTime.Now.AddDays(1);
-            await _context.SaveChangesAsync();
+             _context.SaveChanges();
 
-            return Ok("You may reset your password");
+            var emailText = $"<h1>Welcome to Fuji</h1>" +
+            $"<h3>Please click " +
+                $"<a href=\"{_configuration.GetSection("ClientAppUrl1").Value}/{user.PasswordResetToken}\">here</a>" +
+                $" to reset your password</h3>";
+            SendEmail(user.Email, "Confirm your account", emailText);
+
+            return Ok(new {message = "Ok"});
         }
 
         [HttpGet("get-message"), Authorize]
@@ -233,7 +273,7 @@ namespace VerifyEmailForgotPassword.Controllers
             var user = await _context.Users.FirstOrDefaultAsync(u => u.PasswordResetToken == request.Token);
             if (user == null || user.ResetTokenExpires < DateTime.Now)
             {
-                return BadRequest("Invalid Token");
+                return BadRequest(new {message = "Invalid Token" });
             }
 
             CreatePasswordHash(request.Password, out byte[] passwordHash, out byte[] passwordSalt);
@@ -244,7 +284,7 @@ namespace VerifyEmailForgotPassword.Controllers
             user.ResetTokenExpires = null;
             await _context.SaveChangesAsync();
 
-            return Ok("You may reset your password");
+            return Ok(new {message = "Ok"});
         }
 
 
