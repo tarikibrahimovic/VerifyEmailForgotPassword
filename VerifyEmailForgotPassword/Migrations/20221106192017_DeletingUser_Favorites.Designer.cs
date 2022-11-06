@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using VerifyEmailForgotPassword.Data;
 
@@ -11,9 +12,10 @@ using VerifyEmailForgotPassword.Data;
 namespace VerifyEmailForgotPassword.Migrations
 {
     [DbContext(typeof(DataContext))]
-    partial class DataContextModelSnapshot : ModelSnapshot
+    [Migration("20221106192017_DeletingUser_Favorites")]
+    partial class DeletingUser_Favorites
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,6 +23,21 @@ namespace VerifyEmailForgotPassword.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder, 1L, 1);
+
+            modelBuilder.Entity("FavoritesUser", b =>
+                {
+                    b.Property<int>("FavoritesId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("UsersId")
+                        .HasColumnType("int");
+
+                    b.HasKey("FavoritesId", "UsersId");
+
+                    b.HasIndex("UsersId");
+
+                    b.ToTable("FavoritesUser");
+                });
 
             modelBuilder.Entity("VerifyEmailForgotPassword.Data.Model.Comment", b =>
                 {
@@ -133,29 +150,6 @@ namespace VerifyEmailForgotPassword.Migrations
                     b.ToTable("Votes");
                 });
 
-            modelBuilder.Entity("VerifyEmailForgotPassword.Data.Model.User_Favorites", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"), 1L, 1);
-
-                    b.Property<int>("FavoritesId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FavoritesId");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("User_Favorites");
-                });
-
             modelBuilder.Entity("VerifyEmailForgotPassword.Model.User", b =>
                 {
                     b.Property<int>("Id")
@@ -195,6 +189,21 @@ namespace VerifyEmailForgotPassword.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("FavoritesUser", b =>
+                {
+                    b.HasOne("VerifyEmailForgotPassword.Data.Model.Favorites", null)
+                        .WithMany()
+                        .HasForeignKey("FavoritesId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("VerifyEmailForgotPassword.Model.User", null)
+                        .WithMany()
+                        .HasForeignKey("UsersId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("VerifyEmailForgotPassword.Data.Model.Comment", b =>
@@ -238,30 +247,6 @@ namespace VerifyEmailForgotPassword.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("VerifyEmailForgotPassword.Data.Model.User_Favorites", b =>
-                {
-                    b.HasOne("VerifyEmailForgotPassword.Data.Model.Favorites", "Favorites")
-                        .WithMany("User_Favorites")
-                        .HasForeignKey("FavoritesId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("VerifyEmailForgotPassword.Model.User", "User")
-                        .WithMany("User_Favorites")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Favorites");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("VerifyEmailForgotPassword.Data.Model.Favorites", b =>
-                {
-                    b.Navigation("User_Favorites");
-                });
-
             modelBuilder.Entity("VerifyEmailForgotPassword.Data.Model.Links", b =>
                 {
                     b.Navigation("Votes");
@@ -272,8 +257,6 @@ namespace VerifyEmailForgotPassword.Migrations
                     b.Navigation("Komentar");
 
                     b.Navigation("Linkovi");
-
-                    b.Navigation("User_Favorites");
 
                     b.Navigation("Votes");
                 });

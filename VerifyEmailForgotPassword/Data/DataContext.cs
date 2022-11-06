@@ -20,15 +20,15 @@ namespace VerifyEmailForgotPassword.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<User_Favorites>()
-                .HasOne(u => u.User)
-                .WithMany(u => u.User_Favorites)
-                .HasForeignKey(bi => bi.UserId);
+            //modelBuilder.Entity<User_Favorites>()
+            //    .HasOne(u => u.User)
+            //    .WithMany(u => u.User_Favorites)
+            //    .HasForeignKey(bi => bi.UserId);
 
-            modelBuilder.Entity<User_Favorites>()
-                .HasOne(f => f.Favorite)
-                .WithMany(f => f.User_Favorites)
-                .HasForeignKey(f => f.FavoriteId);
+            //modelBuilder.Entity<User_Favorites>()
+            //    .HasOne(f => f.Favorite)
+            //    .WithMany(f => f.User_Favorites)
+            //    .HasForeignKey(f => f.FavoriteId);
 
             modelBuilder.Entity<LinkVotes>()
                 .HasOne(v => v.User)
@@ -41,7 +41,8 @@ namespace VerifyEmailForgotPassword.Data
 
         public DbSet<User> Users => Set<User>();
         public DbSet<Favorites> Favorites => Set<Favorites>();
-        public DbSet<User_Favorites> UserFavorites => Set<User_Favorites>();
+        public DbSet<User_Favorites> User_Favorites => Set<User_Favorites>();
+
         public DbSet<Comment> Comments => Set<Comment>();
         public DbSet<Links> Link => Set<Links>();
         public DbSet<LinkVotes> Votes => Set<LinkVotes>();

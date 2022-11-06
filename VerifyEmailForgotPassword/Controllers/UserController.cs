@@ -30,25 +30,8 @@ namespace VerifyEmailForgotPassword.Controllers
             _acc = acc;
         }
 
-        //[HttpPost("send-mail")]
-        //public void SendEmail(string user)
-        //{
-        //    var email = new MimeMessage();
-        //    email.From.Add(MailboxAddress.Parse(_configuration.GetSection("Mail:From").Value));
-        //    email.To.Add(MailboxAddress.Parse(_configuration.GetSection("Mail:From").Value));
-        //    email.Subject = "Test Email Subject";
-        //    var mailText = $"<a href=\"{_configuration.GetSection("ClientAppUrl").Value}/{user}\">here</a>";
-        //    email.Body = new TextPart(TextFormat.Html) { Text = mailText };
 
-        //    using var smtp = new SmtpClient();
-        //    smtp.Connect("smtp.ethereal.email",
-        //                 587,
-        //                 SecureSocketOptions.StartTls);
-        //    //smtp.gmail.com ako se na gmail salje
-        //    smtp.Authenticate("rickey.kohler97@ethereal.email", "mEedpuwQb3rfbVfkSt");
-        //    smtp.Send(email);
-        //    smtp.Disconnect(true);
-        //}
+
         private void SendEmail(string recipientEmail, string emailSubject, string emailText)
         {
             var email = new MimeMessage();
@@ -75,28 +58,59 @@ namespace VerifyEmailForgotPassword.Controllers
 
         [HttpPost("add-favorite"), Authorize]
 
-        public async Task<IActionResult> AddToFavorite(FavoritesVM favorite)
+        public async Task<IActionResult> AddToFavorite([FromBody]FavoritesVM favorite)
         {
 
             var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
-
-            var favSadrzaj = new Favorites
+            var favSadrzaj = new Favorites();
+            if (!_context.Favorites.Any(f => f.IdSadrzaja == favorite.IdSadrzaja && f.Tip == favorite.Tip))
             {
-                IdSadrzaja = favorite.IdSadrzaja,
-                Tip = favorite.Tip
-            };
-            _context.Favorites.Add(favSadrzaj);
+                favSadrzaj = new Favorites
+                {
+                    IdSadrzaja = favorite.IdSadrzaja,
+                    Tip = favorite.Tip
+                };
+                _context.Favorites.Add(favSadrzaj);
+                await _context.SaveChangesAsync();
+            }
+            else
+            {
+                favSadrzaj = await _context.Favorites.Where(f => f.IdSadrzaja == favorite.IdSadrzaja && f.Tip == favorite.Tip).FirstOrDefaultAsync();
+            }
 
             var favUser = new User_Favorites
             {
                 UserId = userId,
-                FavoriteId = favorite.IdSadrzaja
+                FavoritesId = favSadrzaj.Id,
             };
-           _context.Add(favUser);
+            _context.User_Favorites.Add(favUser);
             await _context.SaveChangesAsync();
-
             return Ok(new { message = "Uspesno dodano" });
 
+        }
+
+        [HttpGet("get-favorites"), Authorize]
+
+        public async Task<IActionResult> GetFavorites()
+        {
+            var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
+            var sadrzaj = await _context.User_Favorites.Include(e => e.Favorites).ToListAsync();
+            return Ok(sadrzaj);
+        }
+
+
+        [HttpDelete("delete-favorite"),Authorize]
+
+        public async Task<IActionResult> DeleteFavorites(string Tip, int idSadrzaja)
+        {
+            var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
+            var favSadrzaj = await _context.Favorites.Where(f => f.IdSadrzaja == idSadrzaja && f.Tip == Tip).FirstOrDefaultAsync();
+            var rel = await _context.User_Favorites.Where(f => f.UserId == userId && f.FavoritesId == favSadrzaj.Id).FirstOrDefaultAsync();
+            _context.User_Favorites.Remove(rel);
+            _context.SaveChanges();
+
+
+            return Ok(new {message = "Relation removed"});
         }
 
 
@@ -300,7 +314,6 @@ namespace VerifyEmailForgotPassword.Controllers
                 //u weatherForecastController kod authorise da se stavlja koji role moze da pristupi
                 /*new Claim(ClaimTypes.Role, "Admin")*///ovako se daje nekome admin
             };
-            //int.Parse(httpContextAccessor.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
 
             var key = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(_configuration.GetSection("AppSettings:Token").Value));
 
