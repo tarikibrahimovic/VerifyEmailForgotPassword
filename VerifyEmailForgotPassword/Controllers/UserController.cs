@@ -94,7 +94,7 @@ namespace VerifyEmailForgotPassword.Controllers
         public async Task<IActionResult> GetFavorites()
         {
             var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
-            var sadrzaj = await _context.User_Favorites.Include(e => e.Favorites).ToListAsync();
+            var sadrzaj = await _context.User_Favorites.Where(e => e.UserId == userId).Include(e => e.Favorites).ToListAsync();
             return Ok(sadrzaj);
         }
 
