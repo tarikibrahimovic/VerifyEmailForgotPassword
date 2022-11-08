@@ -31,30 +31,92 @@ namespace VerifyEmailForgotPassword.Controllers
         }
 
 
+        [HttpPost("add-comment"), Authorize]
 
-        private void SendEmail(string recipientEmail, string emailSubject, string emailText)
+        public async Task<IActionResult> AddComment([FromBody] CommentVM com)
         {
-            var email = new MimeMessage();
-            email.From.Add(MailboxAddress.Parse(_configuration.GetSection("Mail:From").Value));
-            email.To.Add(MailboxAddress.Parse(recipientEmail));
-            email.Subject = emailSubject;
-            email.Body = new TextPart(TextFormat.Html)
+        var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
+
+            var comment = new Comment
             {
-                Text = emailText
+                UserId = userId,
+                Komentar = com.Komentar,
+                IdSadrzaja = com.IdSadrzaja,
+                TipSadrzaja = com.TipSadrzaja,
+                Date = com.Date,
             };
-            using var smtp = new SmtpClient();
-            smtp.Connect(
-                _configuration.GetSection("Mail:Smtp").Value,
-                int.Parse(_configuration.GetSection("Mail:Port").Value),
-                SecureSocketOptions.StartTls
-                );
-            smtp.Authenticate(
-                _configuration.GetSection("Mail:Username").Value,
-                _configuration.GetSection("Mail:Password").Value
-                );
-            smtp.Send(email);
-            smtp.Disconnect(true);
+            _context.Comments.Add(comment);
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "Comment added succesfully" });
         }
+
+        [HttpDelete("delete-comment"), Authorize]
+
+        public async Task<IActionResult> DeleteComment(int idSadrzaja, string tip)
+        {
+            try
+            {
+            var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
+            var comment = await _context.Comments.Where(c => c.UserId == userId && c.IdSadrzaja == idSadrzaja && c.TipSadrzaja == tip).FirstOrDefaultAsync();
+            _context.Comments.Remove(comment);
+            if(comment == null)
+            {
+                return BadRequest(new {message="Comment not found!"});
+            }
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "Comment deleted succesfully!" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new {message = ex.Message});
+            }
+        }
+
+        [HttpPatch("edit-comment"), Authorize]
+
+        public async Task<IActionResult> EditComment([FromBody]CommentVM com)
+        {
+            try
+            {
+                var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
+                var comment = await _context.Comments.FirstOrDefaultAsync(c => c.UserId == userId && c.IdSadrzaja == com.IdSadrzaja && c.TipSadrzaja == com.TipSadrzaja);
+                comment.Komentar = com.Komentar;
+                comment.Date = com.Date;
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "Comment succesfully edited!" });
+            }
+            catch (Exception ex)
+            {
+
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpGet("get-comments")]
+
+        public async Task<IActionResult> GetComments(string tip, int idSadrzaja)
+        {
+            try
+            {
+                var comments = await _context.Comments.Where(c => c.IdSadrzaja == idSadrzaja && c.TipSadrzaja == tip).Include(e => e.User).Select(u => new
+                {
+                    u.Id,
+                    u.Komentar,
+                    u.Date,
+                    u.TipSadrzaja,
+                    u.IdSadrzaja,
+                    u.User.Username,
+                    u.UserId
+                }).ToListAsync();
+                return Ok(comments);
+            }
+            catch (Exception ex)
+            {
+
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
 
         [HttpPost("add-favorite"), Authorize]
 
@@ -150,20 +212,13 @@ namespace VerifyEmailForgotPassword.Controllers
             return Ok( new {message = "User seccesfully created!" });
         }
 
-        private void CreatePasswordHash(string password, out byte[] passwordHash, out byte[] passwordSalt)
+        [HttpGet("check-token"), Authorize]
+
+        public async Task<IActionResult> CheckToken()
         {
-            using (var hmac = new HMACSHA512())
-            {
-                passwordSalt = hmac.Key;
-                passwordHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
-            }
+            return Ok(new {message = "Token is valid"});
         }
 
-        private string CreateRandomToken()
-        {
-            //da se proveri da l ovakav string vec postoji
-            return Convert.ToHexString(RandomNumberGenerator.GetBytes(64));
-        }
 
         [HttpPost("login")]
         public async Task<IActionResult> Login(UserLoginRequest request)
@@ -242,14 +297,6 @@ namespace VerifyEmailForgotPassword.Controllers
             return Ok(new {message = "User Created"});
         }
 
-        private bool VerifyPasswordHash(string password, byte[] passwordHash, byte[] passwordSalt)
-        {
-            using (var hmac = new HMACSHA512(passwordSalt))
-            {
-                var computedHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
-                return computedHash.SequenceEqual(passwordHash);
-            }
-        }
 
         [HttpPost("forgot-password")]
         public async Task<IActionResult> ForgotPassword(string email)
@@ -271,13 +318,6 @@ namespace VerifyEmailForgotPassword.Controllers
             SendEmail(user.Email, "Confirm your account", emailText);
 
             return Ok(new {message = "Ok"});
-        }
-
-        [HttpGet("get-message"), Authorize]
-
-        public async Task<IActionResult> GetMessage()
-        {
-            return Ok(new { message = "Bravo autorizovan si" });
         }
 
 
@@ -302,6 +342,50 @@ namespace VerifyEmailForgotPassword.Controllers
         }
 
 
+        private void SendEmail(string recipientEmail, string emailSubject, string emailText)
+        {
+            var email = new MimeMessage();
+            email.From.Add(MailboxAddress.Parse(_configuration.GetSection("Mail:From").Value));
+            email.To.Add(MailboxAddress.Parse(recipientEmail));
+            email.Subject = emailSubject;
+            email.Body = new TextPart(TextFormat.Html)
+            {
+                Text = emailText
+            };
+            using var smtp = new SmtpClient();
+            smtp.Connect(
+                _configuration.GetSection("Mail:Smtp").Value,
+                int.Parse(_configuration.GetSection("Mail:Port").Value),
+                SecureSocketOptions.StartTls
+                );
+            smtp.Authenticate(
+                _configuration.GetSection("Mail:Username").Value,
+                _configuration.GetSection("Mail:Password").Value
+                );
+            smtp.Send(email);
+            smtp.Disconnect(true);
+        }
+        private void CreatePasswordHash(string password, out byte[] passwordHash, out byte[] passwordSalt)
+        {
+            using (var hmac = new HMACSHA512())
+            {
+                passwordSalt = hmac.Key;
+                passwordHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
+            }
+        }
+        private bool VerifyPasswordHash(string password, byte[] passwordHash, byte[] passwordSalt)
+        {
+            using (var hmac = new HMACSHA512(passwordSalt))
+            {
+                var computedHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
+                return computedHash.SequenceEqual(passwordHash);
+            }
+        }
+        private string CreateRandomToken()
+        {
+            //da se proveri da l ovakav string vec postoji
+            return Convert.ToHexString(RandomNumberGenerator.GetBytes(64));
+        }
         private string CreateToken(User user)
         {
             List<Claim> claims = new List<Claim>
