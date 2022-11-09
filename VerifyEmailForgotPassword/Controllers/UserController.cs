@@ -30,6 +30,10 @@ namespace VerifyEmailForgotPassword.Controllers
             _acc = acc;
         }
 
+        [HttpPost("add-link"), Authorize]
+
+        //public async Task<IActionResult> AddLink([FromBody] )
+
 
         [HttpPost("add-comment"), Authorize]
 
@@ -216,7 +220,9 @@ namespace VerifyEmailForgotPassword.Controllers
 
         public async Task<IActionResult> CheckToken()
         {
-            return Ok(new {message = "Token is valid"});
+            var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+            return Ok(new { userId, user.Username });
         }
 
 
@@ -244,8 +250,9 @@ namespace VerifyEmailForgotPassword.Controllers
             return Ok(new
             {
                 username = user.Username,
-                message = $"welcome user: {user.Email}",
-                token = token
+                email = user.Email,
+                token = token,
+                id=user.Id,
             });
         }
 

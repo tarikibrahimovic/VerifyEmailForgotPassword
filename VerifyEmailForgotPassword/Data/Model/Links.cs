@@ -8,6 +8,7 @@
         public User User { get; set; }
         public int IdSadrzaja { get; set; }
         public string TipSadrzaja { get; set; }
+        public string Date { get; set; }
         public List<LinkVotes> Votes { get; set; }
     }
 }
