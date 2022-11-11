@@ -32,8 +32,99 @@ namespace VerifyEmailForgotPassword.Controllers
 
         [HttpPost("add-link"), Authorize]
 
-        //public async Task<IActionResult> AddLink([FromBody] )
+        public async Task<IActionResult> AddLink([FromBody] LinkVM links)
+        {
+            try
+            {
+                var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
 
+                var link = new Links
+                {
+                    UserId = userId,
+                    Link = links.Link,
+                    IdSadrzaja = links.IdSadrzaja,
+                    TipSadrzaja = links.TipSadrzaja,
+                    Date = links.Date,
+                };
+                _context.Link.Add(link);
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "Link added succesfully" });
+            }
+            catch (Exception ex)
+            {
+
+                return BadRequest(new {message = ex.Message}); 
+            }
+        }
+
+        [HttpGet("get-links")]
+
+        public async Task<IActionResult> GetLinks(string tip, int idSadrzaja)
+        {
+            try
+            {
+                var links = await _context.Link.Where(c => c.IdSadrzaja == idSadrzaja && c.TipSadrzaja == tip).Include(e => e.User).Select(u => new
+                {
+                    u.Id,
+                    u.Link,
+                    u.Date,
+                    u.TipSadrzaja,
+                    u.IdSadrzaja,
+                    u.User.Username,
+                    u.UserId
+                }).ToListAsync();
+                return Ok(links);
+            }
+            catch (Exception ex)
+            {
+
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPatch("edit-link"), Authorize]
+
+        public async Task<IActionResult> EditLink([FromBody] LinkVM links)
+        {
+            try
+            {
+                var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
+                var link = await _context.Link.FirstOrDefaultAsync(c => c.UserId == userId && c.IdSadrzaja == links.IdSadrzaja && c.TipSadrzaja == links.TipSadrzaja);
+                link.Link = links.Link;
+                link.Date = links.Date;
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "Link edited succesfully!"});
+            }
+            catch (Exception ex)
+            {
+
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpDelete("delete-link"), Authorize]
+
+        public async Task<IActionResult> DeleteLink(int idSadrzaja, string tip)
+        {
+            try
+            {
+                var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
+                var link = await _context.Link.Where(c => c.UserId == userId && c.IdSadrzaja == idSadrzaja && c.TipSadrzaja == tip).FirstOrDefaultAsync();
+                //_context.Comments.Remove(link);
+                _context.Link.Remove(link);
+                if (link == null)
+                {
+                    return BadRequest(new { message = "Link not found!" });
+                }
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "Link deleted succesfully!" });
+            }
+            catch (Exception ex)
+            {
+
+                return BadRequest(new { message = ex.Message });
+            }
+        }
 
         [HttpPost("add-comment"), Authorize]
 
