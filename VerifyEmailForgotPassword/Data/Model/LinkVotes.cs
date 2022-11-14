@@ -8,7 +8,7 @@
         public int UserId { get; set; }
         public User User { get; set; }
         public bool Vote { get; set; }
-        public int IdSadrzaja { get; set; }
+        public int IdSadrzaja { get; set; } 
         public string TipSadrzaja { get; set; }
     }
 }

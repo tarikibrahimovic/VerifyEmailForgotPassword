@@ -30,6 +30,68 @@ namespace VerifyEmailForgotPassword.Controllers
             _acc = acc;
         }
 
+
+        [HttpPost("vote"), Authorize]
+
+        public async Task<IActionResult> Vote([FromBody] VoteVM req)
+        {
+            try
+            {
+                var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
+
+                if(_context.Votes.Any(v => v.UserId == userId && v.LinkId == req.LinkId && v.Vote == req.Vote))
+                {
+                    return BadRequest(new { message = "Already voted!" });
+                }
+
+                if (_context.Votes.Any(v => v.UserId == userId && v.LinkId == req.LinkId && v.Vote != req.Vote))
+                {
+                    var glas = await _context.Votes.FirstOrDefaultAsync(v => v.UserId == userId && v.LinkId == req.LinkId && v.Vote != req.Vote);
+                    glas.Vote = req.Vote;
+                    await _context.SaveChangesAsync();
+                    return Ok(new { message = "Vote changed!" });
+                }
+
+                var vote = new LinkVotes
+                {
+                    LinkId = req.LinkId,
+                    UserId = userId,
+                    Vote = req.Vote,
+                    IdSadrzaja = req.idSadrzaja,
+                    TipSadrzaja = req.tipsadrzaja
+                };
+                _context.Votes.Add(vote);
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "Vote added!" });
+            }
+            catch (Exception ex)
+            {
+
+                return BadRequest(new { ex.Message });
+            }
+        }
+
+
+        [HttpGet("get-votes")]
+
+        public async Task<IActionResult> GetVotes(int linkId)
+        {
+            try
+            {
+                var vote = await _context.Votes.Where(v => v.LinkId == linkId).ToListAsync();
+                var positiveVotes = vote.Where(v => v.Vote == true).Count();
+                var negativeVotes = vote.Where(v => v.Vote == false).Count();
+                return Ok(new {votes = positiveVotes - negativeVotes});
+
+            }
+            catch (Exception ex)
+            {
+
+                return BadRequest(new { ex.Message });
+            }
+        }
+
+
         [HttpPost("add-link"), Authorize]
 
         public async Task<IActionResult> AddLink([FromBody] LinkVM links)
@@ -63,7 +125,8 @@ namespace VerifyEmailForgotPassword.Controllers
         {
             try
             {
-                var links = await _context.Link.Where(c => c.IdSadrzaja == idSadrzaja && c.TipSadrzaja == tip).Include(e => e.User).Select(u => new
+
+                var links = await _context.Link.Where(c => c.IdSadrzaja == idSadrzaja && c.TipSadrzaja == tip).Include(l => l.Votes).Include(e => e.User).Select(u => new
                 {
                     u.Id,
                     u.Link,
@@ -71,7 +134,8 @@ namespace VerifyEmailForgotPassword.Controllers
                     u.TipSadrzaja,
                     u.IdSadrzaja,
                     u.User.Username,
-                    u.UserId
+                    u.UserId,
+                    u.Votes
                 }).ToListAsync();
                 return Ok(links);
             }
