@@ -41,7 +41,10 @@ namespace VerifyEmailForgotPassword.Controllers
 
                 if(_context.Votes.Any(v => v.UserId == userId && v.LinkId == req.LinkId && v.Vote == req.Vote))
                 {
-                    return BadRequest(new { message = "Already voted!" });
+                    var pom = await _context.Votes.FirstOrDefaultAsync(v => v.UserId == userId && v.LinkId == req.LinkId && v.Vote == req.Vote);
+                    _context.Votes.Remove(pom);
+                    await _context.SaveChangesAsync();
+                    return Ok(new { message = "Vote deleted!" });
                 }
 
                 if (_context.Votes.Any(v => v.UserId == userId && v.LinkId == req.LinkId && v.Vote != req.Vote))
@@ -168,13 +171,14 @@ namespace VerifyEmailForgotPassword.Controllers
 
         [HttpDelete("delete-link"), Authorize]
 
-        public async Task<IActionResult> DeleteLink(int idSadrzaja, string tip)
+        public async Task<IActionResult> DeleteLink(int linkId)
         {
             try
             {
                 var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
-                var link = await _context.Link.Where(c => c.UserId == userId && c.IdSadrzaja == idSadrzaja && c.TipSadrzaja == tip).FirstOrDefaultAsync();
-                //_context.Comments.Remove(link);
+                var link = await _context.Link.Where(c => c.Id == linkId).FirstOrDefaultAsync();
+                var votes = await _context.Votes.Where(c => c.Id == link.Id).ToListAsync();
+                _context.Votes.RemoveRange(votes);
                 _context.Link.Remove(link);
                 if (link == null)
                 {
