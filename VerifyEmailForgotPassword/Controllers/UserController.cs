@@ -31,6 +31,66 @@ namespace VerifyEmailForgotPassword.Controllers
         }
 
 
+        [HttpDelete("admin-delete"), Authorize]
+
+        public async Task<IActionResult> AdminDelete(int id)
+        {
+            try
+            {
+                var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+                var deletedUser = await _context.Users.FirstOrDefaultAsync(u => u.Id == id);
+                if(user.Role == "Admin")
+                {
+                    _context.Users.Remove(deletedUser);
+                    await _context.SaveChangesAsync();
+                    return Ok(new { message = "User delete succesfully" });
+                }
+                else
+                {
+                    return BadRequest(new { message = "You are not authorized for this aciton" });
+                }
+            }
+            catch (Exception ex)
+            {
+
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+
+        [HttpGet("admin"), Authorize]
+
+        public async Task<IActionResult> AdminTab()
+        {
+            try
+            {
+                var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+                if (user.Role == "Admin")
+                {
+                    var userList = await _context.Users.Select(u => new
+                    {
+                        u.Id,
+                        u.Username,
+                        u.Email,
+                        u.VerifiedAt
+                    }).ToListAsync();
+                    return Ok(userList);
+                }
+                else
+                {
+                    return BadRequest(new { message = "Nisi admin" });
+                }
+            }
+            catch (Exception ex)
+            {
+
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+
         [HttpPost("vote"), Authorize]
 
         public async Task<IActionResult> Vote([FromBody] VoteVM req)
@@ -175,7 +235,6 @@ namespace VerifyEmailForgotPassword.Controllers
         {
             try
             {
-                var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
                 var link = await _context.Link.Where(c => c.Id == linkId).FirstOrDefaultAsync();
                 var votes = await _context.Votes.Where(c => c.Id == link.Id).ToListAsync();
                 _context.Votes.RemoveRange(votes);
@@ -215,12 +274,11 @@ namespace VerifyEmailForgotPassword.Controllers
 
         [HttpDelete("delete-comment"), Authorize]
 
-        public async Task<IActionResult> DeleteComment(int idSadrzaja, string tip)
+        public async Task<IActionResult> DeleteComment(int commentId)
         {
             try
             {
-            var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
-            var comment = await _context.Comments.Where(c => c.UserId == userId && c.IdSadrzaja == idSadrzaja && c.TipSadrzaja == tip).FirstOrDefaultAsync();
+            var comment = await _context.Comments.Where(c => c.Id == commentId).FirstOrDefaultAsync();
             _context.Comments.Remove(comment);
             if(comment == null)
             {
@@ -360,7 +418,8 @@ namespace VerifyEmailForgotPassword.Controllers
                 Email = request.Email,
                 PasswordHash = passwordHash,
                 PassswordSalt = passwordSalt,
-                VerificationToken = CreateRandomToken()
+                VerificationToken = CreateRandomToken(),
+                Role = "Registered"
             };
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
@@ -381,7 +440,7 @@ namespace VerifyEmailForgotPassword.Controllers
         {
             var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
-            return Ok(new { userId, user.Username });
+            return Ok(new { userId, user.Username, user.Role });
         }
 
 
@@ -412,6 +471,7 @@ namespace VerifyEmailForgotPassword.Controllers
                 email = user.Email,
                 token = token,
                 id=user.Id,
+                role=user.Role,
             });
         }
 
@@ -557,12 +617,7 @@ namespace VerifyEmailForgotPassword.Controllers
             List<Claim> claims = new List<Claim>
             {
                 new Claim(ClaimTypes.PrimarySid, user.Id.ToString()),
-                new Claim(ClaimTypes.Role, "Registered")
-                //new Claim(ClaimTypes.Role, "Admin")
-
-                //ovo drugo je za role i dodaje se isto
-                //u weatherForecastController kod authorise da se stavlja koji role moze da pristupi
-                /*new Claim(ClaimTypes.Role, "Admin")*///ovako se daje nekome admin
+                new Claim(ClaimTypes.Role, user.Role)
             };
 
             var key = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(_configuration.GetSection("AppSettings:Token").Value));
