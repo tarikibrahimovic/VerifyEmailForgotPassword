@@ -31,6 +31,35 @@ namespace VerifyEmailForgotPassword.Controllers
         }
 
 
+        [HttpPatch("change-username"), Authorize]
+
+        public async Task<IActionResult> ChangeUsernema(string newUsername)
+        {
+            try
+            {
+                var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+
+                if(_context.Users.Any(u => u.Username == newUsername))
+                {
+                    return BadRequest(new { message = "Username already taken" });
+                }
+                else
+                {
+                user.Username = newUsername;
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "Usernmane changed succesfully" });
+                }
+
+            }
+            catch (Exception ex)
+            {
+
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+
         [HttpDelete("admin-delete"), Authorize]
 
         public async Task<IActionResult> AdminDelete(int id)

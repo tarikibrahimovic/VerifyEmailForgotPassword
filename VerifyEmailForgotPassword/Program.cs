@@ -25,7 +25,6 @@ builder.Services.AddCors(c =>
     {
         builder.AllowAnyMethod().AllowAnyHeader().SetIsOriginAllowed(_ => true).AllowCredentials();
     });
-    //c.AddPolicy("AllowOrigin", options => options.AllowAnyMethod().AllowAnyHeader().SetIsOriginAllowed(_ => true).AllowCredentials());
 });
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
