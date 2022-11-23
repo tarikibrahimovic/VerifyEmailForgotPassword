@@ -31,6 +31,23 @@ namespace VerifyEmailForgotPassword.Controllers
         }
 
 
+        //[HttpGet("profile"), Authorize]
+
+        //public async Task<IActionResult> Profile()
+        //{
+        //    try
+        //    {
+        //        var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
+        //        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        //        return Ok(new {username = user.Username, verifiedAt = user.VerifiedAt, email = user.Email, role = user.Role});
+        //    }
+        //    catch (Exception ex)
+        //    {
+
+        //        return BadRequest(new { message = ex.Message });
+        //    }
+        //}
+
         [HttpPatch("change-username"), Authorize]
 
         public async Task<IActionResult> ChangeUsernema(string newUsername)
@@ -469,7 +486,7 @@ namespace VerifyEmailForgotPassword.Controllers
         {
             var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
-            return Ok(new { userId, user.Username, user.Role });
+            return Ok(new { userId, user.Username, user.Role, user.Email, user.VerifiedAt });
         }
 
 
@@ -556,6 +573,8 @@ namespace VerifyEmailForgotPassword.Controllers
         [HttpPost("forgot-password")]
         public async Task<IActionResult> ForgotPassword(string email)
         {
+            try
+            {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
             if (user == null)
             {
@@ -570,9 +589,15 @@ namespace VerifyEmailForgotPassword.Controllers
             $"<h3>Please click " +
                 $"<a href=\"{_configuration.GetSection("ClientAppUrl1").Value}/{user.PasswordResetToken}\">here</a>" +
                 $" to reset your password</h3>";
-            SendEmail(user.Email, "Confirm your account", emailText);
+            SendEmail(user.Email, "Reset your Password", emailText);
 
             return Ok(new {message = "Ok"});
+            }
+            catch (Exception ex)
+            {
+
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
 
