@@ -15,6 +15,7 @@ namespace VerifyEmailForgotPassword.Model
         public DateTime? VerifiedAt { get; set; }
         public string? PasswordResetToken { get; set; }
         public DateTime? ResetTokenExpires { get; set; }
+        public string? PictureUrl { get; set; }
         public List<User_Favorites> User_Favorites { get; set; }
         public List<Comment> Komentar { get; set; }
         public List<Links> Linkovi { get; set; }

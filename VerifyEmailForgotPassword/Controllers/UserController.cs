@@ -13,6 +13,10 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using VerifyEmailForgotPassword.Data.Model;
 using VerifyEmailForgotPassword.Data.ViewModel;
+using CloudinaryDotNet;
+using CloudinaryDotNet.Actions;
+using System.IO;
+using Microsoft.EntityFrameworkCore;
 
 namespace VerifyEmailForgotPassword.Controllers
 {
@@ -23,30 +27,88 @@ namespace VerifyEmailForgotPassword.Controllers
         private readonly DataContext _context;
         private IConfiguration _configuration;
         private IHttpContextAccessor _acc;
+        private Account account;
+        private Cloudinary cloudinary;
         public UserController(DataContext context, IConfiguration configuration, IHttpContextAccessor acc)
         {
             _configuration = configuration;
             _context = context;
             _acc = acc;
+            account = new Account(configuration.GetSection("Cloudinary:Cloud").Value,
+                configuration.GetSection("Cloudinary:ApiKey").Value,
+                configuration.GetSection("Cloudinary:ApiSecret").Value);
+            cloudinary = new Cloudinary(account);
         }
 
 
-        //[HttpGet("profile"), Authorize]
+        [HttpDelete("delete-image"),Authorize]
 
-        //public async Task<IActionResult> Profile()
-        //{
-        //    try
-        //    {
-        //        var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
-        //        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
-        //        return Ok(new {username = user.Username, verifiedAt = user.VerifiedAt, email = user.Email, role = user.Role});
-        //    }
-        //    catch (Exception ex)
-        //    {
+        public async Task<IActionResult> DeleteImage()
+        {
+            try
+            {
+                var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+                if(user.PictureUrl != null)
+                {
+                user.PictureUrl = null;
+                var profilePicturePublicId = $"{_configuration.GetSection("Cloudinary:ProfilePicsFolderName").Value}/user{userId}_profile-picture";
+                var deletionParams = new DeletionParams(profilePicturePublicId)
+                {
+                    ResourceType = ResourceType.Image
+                };
+                cloudinary.Destroy(deletionParams);
+                    return Ok(new { message = "Picture delete succesfully" });
+                }
+                else
+                {
+                    return BadRequest(new { message = "You don't have a picture" });
+                }
+            }
+            catch (Exception ex)
+            {
 
-        //        return BadRequest(new { message = ex.Message });
-        //    }
-        //}
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("add-image"),Authorize]
+
+        public async Task<IActionResult> AddImage([FromForm] ImageVM image)
+        {
+            try
+            {
+                if (image.ProfilePicture == null)
+                {
+                    return BadRequest(new { message = "Prazan req" });
+                }
+                var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+
+                var filePath = Path.GetTempFileName();
+
+                using (var stream = System.IO.File.Create(filePath))
+                {
+                    await image.ProfilePicture.CopyToAsync(stream);
+                }
+                var profilePicturePublicId = $"{_configuration.GetSection("Cloudinary:ProfilePicsFolderName").Value}/user{userId}_profile-picture";
+                var uploadParams = new ImageUploadParams()
+                {
+                    File = new FileDescription(filePath),
+                    PublicId = profilePicturePublicId,
+                };
+                var uploadResult = cloudinary.Upload(uploadParams);
+                user.PictureUrl = uploadResult.Url.ToString();
+                _context.SaveChanges();
+                return Ok(new { pictureUrl = uploadResult.Url });
+            }
+            catch (Exception ex)
+            {
+
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
 
         [HttpPatch("change-username"), Authorize]
 
@@ -486,7 +548,7 @@ namespace VerifyEmailForgotPassword.Controllers
         {
             var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
-            return Ok(new { userId, user.Username, user.Role, user.Email, user.VerifiedAt });
+            return Ok(new { userId, user.Username, user.Role, user.Email, user.VerifiedAt, user.PictureUrl });
         }
 
 
@@ -518,6 +580,8 @@ namespace VerifyEmailForgotPassword.Controllers
                 token = token,
                 id=user.Id,
                 role=user.Role,
+                verifiedAt = user.VerifiedAt,
+                pictureUrl = user.PictureUrl,
             });
         }
 
