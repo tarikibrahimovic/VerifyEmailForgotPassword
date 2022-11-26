@@ -58,6 +58,7 @@ namespace VerifyEmailForgotPassword.Controllers
                     ResourceType = ResourceType.Image
                 };
                 cloudinary.Destroy(deletionParams);
+                    _context.SaveChanges();
                     return Ok(new { message = "Picture delete succesfully" });
                 }
                 else
