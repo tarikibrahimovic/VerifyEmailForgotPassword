@@ -20,23 +20,12 @@ namespace VerifyEmailForgotPassword.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            //modelBuilder.Entity<User_Favorites>()
-            //    .HasOne(u => u.User)
-            //    .WithMany(u => u.User_Favorites)
-            //    .HasForeignKey(bi => bi.UserId);
-
-            //modelBuilder.Entity<User_Favorites>()
-            //    .HasOne(f => f.Favorite)
-            //    .WithMany(f => f.User_Favorites)
-            //    .HasForeignKey(f => f.FavoriteId);
 
             modelBuilder.Entity<LinkVotes>()
                 .HasOne(v => v.User)
                 .WithMany(u => u.Votes)
                 .HasForeignKey(v => v.UserId)
                 .OnDelete(DeleteBehavior.NoAction);
-
-            //ovo je za 2 dela tabele, definisanje knjiga i autora
     }
 
         public DbSet<User> Users => Set<User>();

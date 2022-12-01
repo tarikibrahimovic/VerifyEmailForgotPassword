@@ -41,6 +41,30 @@ namespace VerifyEmailForgotPassword.Controllers
         }
 
 
+        [HttpDelete("admin-delete-image"), Authorize]
+
+        public async Task<IActionResult> DeleteImageAdmin(int userId)
+        {
+            try
+            {
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+                user.PictureUrl = null;
+                var profilePicturePublicId = $"{_configuration.GetSection("Cloudinary:ProfilePicsFolderName").Value}/user{userId}_profile-picture";
+                var deletionParams = new DeletionParams(profilePicturePublicId)
+                {
+                    ResourceType = ResourceType.Image
+                };
+                cloudinary.Destroy(deletionParams);
+                _context.SaveChanges();
+                return Ok(new { message = "Picture delete succesfully" });
+            }
+            catch (Exception ex)
+            {
+
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
         [HttpDelete("delete-image"),Authorize]
 
         public async Task<IActionResult> DeleteImage()
@@ -183,7 +207,8 @@ namespace VerifyEmailForgotPassword.Controllers
                         u.Id,
                         u.Username,
                         u.Email,
-                        u.VerifiedAt
+                        u.VerifiedAt,
+                        u.PictureUrl,
                     }).ToListAsync();
                     return Ok(userList);
                 }
@@ -307,7 +332,8 @@ namespace VerifyEmailForgotPassword.Controllers
                     u.IdSadrzaja,
                     u.User.Username,
                     u.UserId,
-                    u.Votes
+                    u.Votes,
+                    u.User.PictureUrl
                 }).ToListAsync();
                 return Ok(links);
             }
@@ -436,7 +462,8 @@ namespace VerifyEmailForgotPassword.Controllers
                     u.TipSadrzaja,
                     u.IdSadrzaja,
                     u.User.Username,
-                    u.UserId
+                    u.UserId,
+                    u.User.PictureUrl
                 }).ToListAsync();
                 return Ok(comments);
             }
@@ -690,7 +717,7 @@ namespace VerifyEmailForgotPassword.Controllers
         private void SendEmail(string recipientEmail, string emailSubject, string emailText)
         {
             var email = new MimeMessage();
-            email.From.Add(MailboxAddress.Parse(_configuration.GetSection("Mail:From").Value));
+                email.From.Add(MailboxAddress.Parse(_configuration.GetSection("Mail:From").Value));
             email.To.Add(MailboxAddress.Parse(recipientEmail));
             email.Subject = emailSubject;
             email.Body = new TextPart(TextFormat.Html)
