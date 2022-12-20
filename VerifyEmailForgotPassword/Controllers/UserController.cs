@@ -17,6 +17,7 @@ using CloudinaryDotNet;
 using CloudinaryDotNet.Actions;
 using System.IO;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 
 namespace VerifyEmailForgotPassword.Controllers
 {
@@ -536,6 +537,9 @@ namespace VerifyEmailForgotPassword.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> Register(UserRegisterRequest request)
         {
+            try
+            {
+
             if(_context.Users.Any(u => u.Email == request.Email))
             {
                 return BadRequest(new {message = "User already exists." });
@@ -568,15 +572,68 @@ namespace VerifyEmailForgotPassword.Controllers
 
 
             return Ok( new {message = "User seccesfully created!" });
+            }
+            catch (Exception ex)
+            {
+
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("register-google")]
+
+        public async Task<IActionResult> RegisterGoogle(GoogleRegisterRequest request)
+        {
+            try
+            {
+                if (_context.Users.Any(u => u.Email == request.Email))
+                {
+                    return BadRequest(new { message = "User already exists." });
+                }
+
+                var user = new User
+                {
+                    Username = request.Username,
+                    Email = request.Email,
+                    VerificationToken = CreateRandomToken(),
+                    Sub = request.Sub,
+                    Role = "Registered",
+                };
+
+                _context.Users.Add(user);
+                await _context.SaveChangesAsync();
+
+                var emailText = $"<h1>Welcome to Fuji</h1>" +
+                $"<h3>Please click " +
+                    $"<a href=\"{_configuration.GetSection("ClientAppUrl").Value}/{user.VerificationToken}\">here</a>" +
+                    $" to confirm your account</h3>";
+                SendEmail(user.Email, "Confirm your account", emailText);
+
+
+                return Ok(new { message = "User seccesfully created!" });
+            }
+            catch (Exception ex)
+            {
+
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpGet("check-token"), Authorize]
-
         public async Task<IActionResult> CheckToken()
         {
             var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
+            var pom = string.Empty;
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
-            return Ok(new { userId, user.Username, user.Role, user.Email, user.VerifiedAt, user.PictureUrl });
+            if (user.Sub != null)
+            {
+                pom = "Google";
+            }
+            else
+            {
+                pom = "Form";
+            }
+            return Ok(new { userId, user.Username, user.Role, user.Email, user.VerifiedAt, user.PictureUrl, pom });
         }
 
 
@@ -586,17 +643,17 @@ namespace VerifyEmailForgotPassword.Controllers
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
             if(user == null)
             {
-                return BadRequest(new {message = "User not found" });
+                return BadRequest(new {message = "User not found!" });
             }
 
             if(!VerifyPasswordHash(request.Password, user.PasswordHash, user.PassswordSalt))
             {
-                return BadRequest(new { message = "Something not right, try again" });
+                return BadRequest(new { message = "Something not right, try again!" });
             }
 
             if(user.VerifiedAt == null)
             {
-                return BadRequest(new { message = "Not verified" });
+                return BadRequest(new { message = "Not verified!" });
             }
 
             string token = CreateToken(user);
@@ -610,7 +667,51 @@ namespace VerifyEmailForgotPassword.Controllers
                 role=user.Role,
                 verifiedAt = user.VerifiedAt,
                 pictureUrl = user.PictureUrl,
+                type = "Form",
             });
+        }
+
+        [HttpPost("login-google")]
+
+        public async Task<IActionResult> LoginGoogle(GoogleRegisterRequest request)
+        {
+            try
+            {
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+                if (user == null)
+                {
+                    return BadRequest(new { message = "User not found" });
+                }
+
+                if (user.Sub != request.Sub)
+                {
+                    return BadRequest(new { message = "Something not right, try again!" });
+                }
+
+                if (user.VerifiedAt == null)
+                {
+                    return BadRequest(new { message = "Not verified!" });
+                }
+
+                string token = CreateToken(user);
+
+                return Ok(new
+                {
+                    username = user.Username,
+                    email = user.Email,
+                    token = token,
+                    id = user.Id,
+                    role = user.Role,
+                    verifiedAt = user.VerifiedAt,
+                    pictureUrl = user.PictureUrl,
+                    type = "Google",
+                });
+            }
+            catch (Exception ex)
+            {
+
+                return BadRequest(new {message = ex.Message});
+            }
         }
 
         [HttpPost("change-password"), Authorize]
