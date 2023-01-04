@@ -41,16 +41,94 @@ namespace VerifyEmailForgotPassword.Controllers
             cloudinary = new Cloudinary(account);
         }
 
+        [HttpDelete("delete-google")]
 
-        [HttpDelete("admin-delete-image"), Authorize]
-
-        public async Task<IActionResult> DeleteImageAdmin(int userId)
+        public async Task<IActionResult> DeleteGoogle()
         {
             try
             {
+                var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
                 var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+                var votes = await _context.Votes.Where(v => v.UserId == userId).ToListAsync();
+                _context.Votes.RemoveRange(votes);
+                _context.Users.Remove(user);
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "User removed" });
+            }
+            catch (Exception ex)
+            {
+
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("add-favorite"), Authorize]
+
+        public async Task<IActionResult> AddToFavorite([FromBody] FavoritesVM favorite)
+        {
+
+            var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
+            var favSadrzaj = new Favorites();
+            if (!_context.Favorites.Any(f => f.IdSadrzaja == favorite.IdSadrzaja && f.Tip == favorite.Tip))
+            {
+                favSadrzaj = new Favorites
+                {
+                    IdSadrzaja = favorite.IdSadrzaja,
+                    Tip = favorite.Tip
+                };
+                _context.Favorites.Add(favSadrzaj);
+                await _context.SaveChangesAsync();
+            }
+            else
+            {
+                favSadrzaj = await _context.Favorites.Where(f => f.IdSadrzaja == favorite.IdSadrzaja && f.Tip == favorite.Tip).FirstOrDefaultAsync();
+            }
+
+            var favUser = new User_Favorites
+            {
+                UserId = userId,
+                FavoritesId = favSadrzaj.Id,
+            };
+            _context.User_Favorites.Add(favUser);
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "Uspesno dodano" });
+
+        }
+
+        [HttpGet("get-favorites"), Authorize]
+
+        public async Task<IActionResult> GetFavorites()
+        {
+            var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
+            var sadrzaj = await _context.User_Favorites.Where(e => e.UserId == userId).Include(e => e.Favorites).ToListAsync();
+            return Ok(sadrzaj);
+        }
+
+
+        [HttpDelete("delete-favorite/{tip}/{id}"), Authorize]
+
+        public async Task<IActionResult> DeleteFavorites(string tip, int id)
+        {
+            var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
+            var favSadrzaj = await _context.Favorites.Where(f => f.IdSadrzaja == id && f.Tip == tip).FirstOrDefaultAsync();
+            var rel = await _context.User_Favorites.Where(f => f.UserId == userId && f.FavoritesId == favSadrzaj.Id).FirstOrDefaultAsync();
+            _context.User_Favorites.Remove(rel);
+            _context.SaveChanges();
+
+
+            return Ok(new { message = "Relation removed" });
+        }
+
+
+        [HttpDelete("admin-delete-image/{id}"), Authorize]
+
+        public async Task<IActionResult> DeleteImageAdmin(int id)
+        {
+            try
+            {
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == id);
                 user.PictureUrl = null;
-                var profilePicturePublicId = $"{_configuration.GetSection("Cloudinary:ProfilePicsFolderName").Value}/user{userId}_profile-picture";
+                var profilePicturePublicId = $"{_configuration.GetSection("Cloudinary:ProfilePicsFolderName").Value}/user{id}_profile-picture";
                 var deletionParams = new DeletionParams(profilePicturePublicId)
                 {
                     ResourceType = ResourceType.Image
@@ -66,7 +144,7 @@ namespace VerifyEmailForgotPassword.Controllers
             }
         }
 
-        [HttpDelete("delete-image"),Authorize]
+        [HttpDelete("delete-image"), Authorize]
 
         public async Task<IActionResult> DeleteImage()
         {
@@ -74,15 +152,15 @@ namespace VerifyEmailForgotPassword.Controllers
             {
                 var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
                 var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
-                if(user.PictureUrl != null)
+                if (user.PictureUrl != null)
                 {
-                user.PictureUrl = null;
-                var profilePicturePublicId = $"{_configuration.GetSection("Cloudinary:ProfilePicsFolderName").Value}/user{userId}_profile-picture";
-                var deletionParams = new DeletionParams(profilePicturePublicId)
-                {
-                    ResourceType = ResourceType.Image
-                };
-                cloudinary.Destroy(deletionParams);
+                    user.PictureUrl = null;
+                    var profilePicturePublicId = $"{_configuration.GetSection("Cloudinary:ProfilePicsFolderName").Value}/user{userId}_profile-picture";
+                    var deletionParams = new DeletionParams(profilePicturePublicId)
+                    {
+                        ResourceType = ResourceType.Image
+                    };
+                    cloudinary.Destroy(deletionParams);
                     _context.SaveChanges();
                     return Ok(new { message = "Picture delete succesfully" });
                 }
@@ -98,7 +176,7 @@ namespace VerifyEmailForgotPassword.Controllers
             }
         }
 
-        [HttpPost("add-image"),Authorize]
+        [HttpPost("add-image"), Authorize]
 
         public async Task<IActionResult> AddImage([FromForm] ImageVM image)
         {
@@ -138,22 +216,22 @@ namespace VerifyEmailForgotPassword.Controllers
 
         [HttpPatch("change-username"), Authorize]
 
-        public async Task<IActionResult> ChangeUsernema(string newUsername)
+        public async Task<IActionResult> ChangeUsernema([FromBody] UsernameVM username)
         {
             try
             {
                 var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
                 var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
 
-                if(_context.Users.Any(u => u.Username == newUsername))
+                if (_context.Users.Any(u => u.Username == username.Username))
                 {
                     return BadRequest(new { message = "Username already taken" });
                 }
                 else
                 {
-                user.Username = newUsername;
-                await _context.SaveChangesAsync();
-                return Ok(new { message = "Usernmane changed succesfully" });
+                    user.Username = username.Username;
+                    await _context.SaveChangesAsync();
+                    return Ok(new { message = "Usernmane changed succesfully" });
                 }
 
             }
@@ -165,7 +243,7 @@ namespace VerifyEmailForgotPassword.Controllers
         }
 
 
-        [HttpDelete("admin-delete"), Authorize]
+        [HttpDelete("admin-delete/{id}"), Authorize]
 
         public async Task<IActionResult> AdminDelete(int id)
         {
@@ -174,7 +252,7 @@ namespace VerifyEmailForgotPassword.Controllers
                 var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
                 var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
                 var deletedUser = await _context.Users.FirstOrDefaultAsync(u => u.Id == id);
-                if(user.Role == "Admin")
+                if (user.Role == "Admin")
                 {
                     _context.Users.Remove(deletedUser);
                     await _context.SaveChangesAsync();
@@ -225,6 +303,92 @@ namespace VerifyEmailForgotPassword.Controllers
             }
         }
 
+        [HttpPost("add-comment"), Authorize]
+
+        public async Task<IActionResult> AddComment([FromBody] CommentVM com)
+        {
+            var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
+
+            var comment = new Comment
+            {
+                UserId = userId,
+                Komentar = com.Komentar,
+                IdSadrzaja = com.IdSadrzaja,
+                TipSadrzaja = com.TipSadrzaja,
+                Date = com.Date,
+            };
+            _context.Comments.Add(comment);
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "Comment added succesfully" });
+        }
+
+        [HttpDelete("delete-comment/{id}"), Authorize]
+
+        public async Task<IActionResult> DeleteComment(int id)
+        {
+            try
+            {
+                var comment = await _context.Comments.Where(c => c.Id == id).FirstOrDefaultAsync();
+                _context.Comments.Remove(comment);
+                if (comment == null)
+                {
+                    return BadRequest(new { message = "Comment not found!" });
+                }
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "Comment deleted succesfully!" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPatch("edit-comment"), Authorize]
+
+        public async Task<IActionResult> EditComment([FromBody] CommentVM com)
+        {
+            try
+            {
+                var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
+                var comment = await _context.Comments.FirstOrDefaultAsync(c => c.UserId == userId && c.IdSadrzaja == com.IdSadrzaja && c.TipSadrzaja == com.TipSadrzaja);
+                comment.Komentar = com.Komentar;
+                comment.Date = com.Date;
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "Comment succesfully edited!" });
+            }
+            catch (Exception ex)
+            {
+
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpGet("get-comments/{tip}/{id}")]
+
+        public async Task<IActionResult> GetComments(string tip, int id)
+        {
+            try
+            {
+                var comments = await _context.Comments.Where(c => c.IdSadrzaja == id && c.TipSadrzaja == tip).Include(e => e.User).Select(u => new
+                {
+                    u.Id,
+                    u.Komentar,
+                    u.Date,
+                    u.TipSadrzaja,
+                    u.IdSadrzaja,
+                    u.User.Username,
+                    u.UserId,
+                    u.User.PictureUrl
+                }).ToListAsync();
+                return Ok(comments);
+            }
+            catch (Exception ex)
+            {
+
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
 
         [HttpPost("vote"), Authorize]
 
@@ -234,7 +398,7 @@ namespace VerifyEmailForgotPassword.Controllers
             {
                 var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
 
-                if(_context.Votes.Any(v => v.UserId == userId && v.LinkId == req.LinkId && v.Vote == req.Vote))
+                if (_context.Votes.Any(v => v.UserId == userId && v.LinkId == req.LinkId && v.Vote == req.Vote))
                 {
                     var pom = await _context.Votes.FirstOrDefaultAsync(v => v.UserId == userId && v.LinkId == req.LinkId && v.Vote == req.Vote);
                     _context.Votes.Remove(pom);
@@ -270,16 +434,16 @@ namespace VerifyEmailForgotPassword.Controllers
         }
 
 
-        [HttpGet("get-votes")]
+        [HttpGet("get-votes/{id}")]
 
-        public async Task<IActionResult> GetVotes(int linkId)
+        public async Task<IActionResult> GetVotes(int id)
         {
             try
             {
-                var vote = await _context.Votes.Where(v => v.LinkId == linkId).ToListAsync();
+                var vote = await _context.Votes.Where(v => v.LinkId == id).ToListAsync();
                 var positiveVotes = vote.Where(v => v.Vote == true).Count();
                 var negativeVotes = vote.Where(v => v.Vote == false).Count();
-                return Ok(new {votes = positiveVotes - negativeVotes});
+                return Ok(new { votes = positiveVotes - negativeVotes });
 
             }
             catch (Exception ex)
@@ -313,18 +477,18 @@ namespace VerifyEmailForgotPassword.Controllers
             catch (Exception ex)
             {
 
-                return BadRequest(new {message = ex.Message}); 
+                return BadRequest(new { message = ex.Message });
             }
         }
 
-        [HttpGet("get-links")]
+        [HttpGet("get-links/{tip}/{id}")]
 
-        public async Task<IActionResult> GetLinks(string tip, int idSadrzaja)
+        public async Task<IActionResult> GetLinks(string tip, int id)
         {
             try
             {
 
-                var links = await _context.Link.Where(c => c.IdSadrzaja == idSadrzaja && c.TipSadrzaja == tip).Include(l => l.Votes).Include(e => e.User).Select(u => new
+                var links = await _context.Link.Where(c => c.IdSadrzaja == id && c.TipSadrzaja == tip).Include(l => l.Votes).Include(e => e.User).Select(u => new
                 {
                     u.Id,
                     u.Link,
@@ -356,7 +520,7 @@ namespace VerifyEmailForgotPassword.Controllers
                 link.Link = links.Link;
                 link.Date = links.Date;
                 await _context.SaveChangesAsync();
-                return Ok(new { message = "Link edited succesfully!"});
+                return Ok(new { message = "Link edited succesfully!" });
             }
             catch (Exception ex)
             {
@@ -365,13 +529,13 @@ namespace VerifyEmailForgotPassword.Controllers
             }
         }
 
-        [HttpDelete("delete-link"), Authorize]
+        [HttpDelete("delete-link/{id}"), Authorize]
 
-        public async Task<IActionResult> DeleteLink(int linkId)
+        public async Task<IActionResult> DeleteLink(int id)
         {
             try
             {
-                var link = await _context.Link.Where(c => c.Id == linkId).FirstOrDefaultAsync();
+                var link = await _context.Link.Where(c => c.Id == id).FirstOrDefaultAsync();
                 var votes = await _context.Votes.Where(c => c.Id == link.Id).ToListAsync();
                 _context.Votes.RemoveRange(votes);
                 _context.Link.Remove(link);
@@ -389,189 +553,44 @@ namespace VerifyEmailForgotPassword.Controllers
             }
         }
 
-        [HttpPost("add-comment"), Authorize]
-
-        public async Task<IActionResult> AddComment([FromBody] CommentVM com)
-        {
-        var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
-
-            var comment = new Comment
-            {
-                UserId = userId,
-                Komentar = com.Komentar,
-                IdSadrzaja = com.IdSadrzaja,
-                TipSadrzaja = com.TipSadrzaja,
-                Date = com.Date,
-            };
-            _context.Comments.Add(comment);
-            await _context.SaveChangesAsync();
-            return Ok(new { message = "Comment added succesfully" });
-        }
-
-        [HttpDelete("delete-comment"), Authorize]
-
-        public async Task<IActionResult> DeleteComment(int commentId)
-        {
-            try
-            {
-            var comment = await _context.Comments.Where(c => c.Id == commentId).FirstOrDefaultAsync();
-            _context.Comments.Remove(comment);
-            if(comment == null)
-            {
-                return BadRequest(new {message="Comment not found!"});
-            }
-            await _context.SaveChangesAsync();
-            return Ok(new { message = "Comment deleted succesfully!" });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new {message = ex.Message});
-            }
-        }
-
-        [HttpPatch("edit-comment"), Authorize]
-
-        public async Task<IActionResult> EditComment([FromBody]CommentVM com)
-        {
-            try
-            {
-                var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
-                var comment = await _context.Comments.FirstOrDefaultAsync(c => c.UserId == userId && c.IdSadrzaja == com.IdSadrzaja && c.TipSadrzaja == com.TipSadrzaja);
-                comment.Komentar = com.Komentar;
-                comment.Date = com.Date;
-                await _context.SaveChangesAsync();
-                return Ok(new { message = "Comment succesfully edited!" });
-            }
-            catch (Exception ex)
-            {
-
-                return BadRequest(new { message = ex.Message });
-            }
-        }
-
-        [HttpGet("get-comments")]
-
-        public async Task<IActionResult> GetComments(string tip, int idSadrzaja)
-        {
-            try
-            {
-                var comments = await _context.Comments.Where(c => c.IdSadrzaja == idSadrzaja && c.TipSadrzaja == tip).Include(e => e.User).Select(u => new
-                {
-                    u.Id,
-                    u.Komentar,
-                    u.Date,
-                    u.TipSadrzaja,
-                    u.IdSadrzaja,
-                    u.User.Username,
-                    u.UserId,
-                    u.User.PictureUrl
-                }).ToListAsync();
-                return Ok(comments);
-            }
-            catch (Exception ex)
-            {
-
-                return BadRequest(new { message = ex.Message });
-            }
-        }
-
-
-        [HttpPost("add-favorite"), Authorize]
-
-        public async Task<IActionResult> AddToFavorite([FromBody]FavoritesVM favorite)
-        {
-
-            var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
-            var favSadrzaj = new Favorites();
-            if (!_context.Favorites.Any(f => f.IdSadrzaja == favorite.IdSadrzaja && f.Tip == favorite.Tip))
-            {
-                favSadrzaj = new Favorites
-                {
-                    IdSadrzaja = favorite.IdSadrzaja,
-                    Tip = favorite.Tip
-                };
-                _context.Favorites.Add(favSadrzaj);
-                await _context.SaveChangesAsync();
-            }
-            else
-            {
-                favSadrzaj = await _context.Favorites.Where(f => f.IdSadrzaja == favorite.IdSadrzaja && f.Tip == favorite.Tip).FirstOrDefaultAsync();
-            }
-
-            var favUser = new User_Favorites
-            {
-                UserId = userId,
-                FavoritesId = favSadrzaj.Id,
-            };
-            _context.User_Favorites.Add(favUser);
-            await _context.SaveChangesAsync();
-            return Ok(new { message = "Uspesno dodano" });
-
-        }
-
-        [HttpGet("get-favorites"), Authorize]
-
-        public async Task<IActionResult> GetFavorites()
-        {
-            var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
-            var sadrzaj = await _context.User_Favorites.Where(e => e.UserId == userId).Include(e => e.Favorites).ToListAsync();
-            return Ok(sadrzaj);
-        }
-
-
-        [HttpDelete("delete-favorite"),Authorize]
-
-        public async Task<IActionResult> DeleteFavorites(string Tip, int idSadrzaja)
-        {
-            var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
-            var favSadrzaj = await _context.Favorites.Where(f => f.IdSadrzaja == idSadrzaja && f.Tip == Tip).FirstOrDefaultAsync();
-            var rel = await _context.User_Favorites.Where(f => f.UserId == userId && f.FavoritesId == favSadrzaj.Id).FirstOrDefaultAsync();
-            _context.User_Favorites.Remove(rel);
-            _context.SaveChanges();
-
-
-            return Ok(new {message = "Relation removed"});
-        }
-
-
         [HttpPost("register")]
         public async Task<IActionResult> Register(UserRegisterRequest request)
         {
             try
             {
 
-            if(_context.Users.Any(u => u.Email == request.Email))
-            {
-                return BadRequest(new {message = "User already exists." });
-            }
+                if (_context.Users.Any(u => u.Email == request.Email))
+                {
+                    return BadRequest(new { message = "User already exists." });
+                }
 
-            if(_context.Users.Any(u => u.Username == request.Username))
-            {
-                return BadRequest(new { message = "Username is taken" });
-            }
+                if (_context.Users.Any(u => u.Username == request.Username))
+                {
+                    return BadRequest(new { message = "Username is taken" });
+                }
 
-            CreatePasswordHash(request.Password, out byte[] passwordHash, out byte[] passwordSalt);
+                CreatePasswordHash(request.Password, out byte[] passwordHash, out byte[] passwordSalt);
 
-            var user = new User  
-            {
-                Username = request.Username,
-                Email = request.Email,
-                PasswordHash = passwordHash,
-                PassswordSalt = passwordSalt,
-                VerificationToken = CreateRandomToken(),
-                Role = "Registered"
-            };
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+                var user = new User
+                {
+                    Username = request.Username,
+                    Email = request.Email,
+                    PasswordHash = passwordHash,
+                    PassswordSalt = passwordSalt,
+                    VerificationToken = CreateRandomToken(),
+                    Role = "Registered"
+                };
+                _context.Users.Add(user);
+                await _context.SaveChangesAsync();
 
-            var emailText = $"<h1>Welcome to Fuji</h1>" +
-            $"<h3>Please click " +
-                $"<a href=\"{_configuration.GetSection("ClientAppUrl").Value}/{user.VerificationToken}\">here</a>" +
-                $" to confirm your account</h3>";
-            SendEmail(user.Email, "Confirm your account", emailText);
+                var emailText = $"<h1>Welcome to Fuji</h1>" +
+                $"<h3>Please click " +
+                    $"<a href=\"{_configuration.GetSection("ClientAppUrl").Value}/{user.VerificationToken}\">here</a>" +
+                    $" to confirm your account</h3>";
+                SendEmail(user.Email, "Confirm your account", emailText);
 
 
-            return Ok( new {message = "User seccesfully created!" });
+                return Ok(new { message = "User seccesfully created!" });
             }
             catch (Exception ex)
             {
@@ -625,7 +644,7 @@ namespace VerifyEmailForgotPassword.Controllers
             var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
             var pom = string.Empty;
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
-            if (user.Sub != null)
+            if (user.Sub.Length > 0)
             {
                 pom = "Google";
             }
@@ -641,17 +660,17 @@ namespace VerifyEmailForgotPassword.Controllers
         public async Task<IActionResult> Login(UserLoginRequest request)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
-            if(user == null)
+            if (user == null)
             {
-                return BadRequest(new {message = "User not found!" });
+                return BadRequest(new { message = "User not found!" });
             }
 
-            if(!VerifyPasswordHash(request.Password, user.PasswordHash, user.PassswordSalt))
+            if (!VerifyPasswordHash(request.Password, user.PasswordHash, user.PassswordSalt))
             {
                 return BadRequest(new { message = "Something not right, try again!" });
             }
 
-            if(user.VerifiedAt == null)
+            if (user.VerifiedAt == null)
             {
                 return BadRequest(new { message = "Not verified!" });
             }
@@ -663,8 +682,8 @@ namespace VerifyEmailForgotPassword.Controllers
                 username = user.Username,
                 email = user.Email,
                 token = token,
-                id=user.Id,
-                role=user.Role,
+                id = user.Id,
+                role = user.Role,
                 verifiedAt = user.VerifiedAt,
                 pictureUrl = user.PictureUrl,
                 type = "Form",
@@ -710,13 +729,13 @@ namespace VerifyEmailForgotPassword.Controllers
             catch (Exception ex)
             {
 
-                return BadRequest(new {message = ex.Message});
+                return BadRequest(new { message = ex.Message });
             }
         }
 
         [HttpPost("change-password"), Authorize]
 
-        public async Task<IActionResult> ChangePassword([FromBody]ChangePassword change)
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePassword change)
         {
             var userId = int.Parse(_acc.HttpContext.User.FindFirstValue(ClaimTypes.PrimarySid));
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
@@ -731,7 +750,7 @@ namespace VerifyEmailForgotPassword.Controllers
         }
 
 
-        [HttpDelete("delete-acc"), Authorize]
+        [HttpDelete("delete-acc/{password}"), Authorize]
 
         public async Task<IActionResult> DeleteUser(string password)
         {
@@ -741,6 +760,8 @@ namespace VerifyEmailForgotPassword.Controllers
             {
                 return BadRequest(new { message = "Something not right, try again" });
             }
+            var votes = await _context.Votes.Where(v => v.UserId == userId).ToListAsync();
+            _context.Votes.RemoveRange(votes);
             _context.Users.Remove(user);
             _context.SaveChanges();
             return Ok(new { message = "User removed" });
@@ -753,13 +774,13 @@ namespace VerifyEmailForgotPassword.Controllers
             var user = await _context.Users.FirstOrDefaultAsync(u => u.VerificationToken == token.Token);
             if (user == null)
             {
-                return BadRequest("Invalid token"); 
+                return BadRequest("Invalid token");
             }
 
             user.VerifiedAt = DateTime.Now;
             await _context.SaveChangesAsync();
 
-            return Ok(new {message = "User Created"});
+            return Ok(new { message = "User Created" });
         }
 
 
@@ -768,23 +789,23 @@ namespace VerifyEmailForgotPassword.Controllers
         {
             try
             {
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
-            if (user == null)
-            {
-                return BadRequest(new {message = "Email not found"});
-            }
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+                if (user == null)
+                {
+                    return BadRequest(new { message = "Email not found" });
+                }
 
-            user.PasswordResetToken = CreateRandomToken();
-            user.ResetTokenExpires = DateTime.Now.AddDays(1);
-             _context.SaveChanges();
+                user.PasswordResetToken = CreateRandomToken();
+                user.ResetTokenExpires = DateTime.Now.AddDays(1);
+                _context.SaveChanges();
 
-            var emailText = $"<h1>Welcome to Fuji</h1>" +
-            $"<h3>Please click " +
-                $"<a href=\"{_configuration.GetSection("ClientAppUrl1").Value}/{user.PasswordResetToken}\">here</a>" +
-                $" to reset your password</h3>";
-            SendEmail(user.Email, "Reset your Password", emailText);
+                var emailText = $"<h1>Welcome to Fuji</h1>" +
+                $"<h3>Please click " +
+                    $"<a href=\"{_configuration.GetSection("ClientAppUrl1").Value}/{user.PasswordResetToken}\">here</a>" +
+                    $" to reset your password</h3>";
+                SendEmail(user.Email, "Reset your Password", emailText);
 
-            return Ok(new {message = "Ok"});
+                return Ok(new { message = "Ok" });
             }
             catch (Exception ex)
             {
@@ -800,7 +821,7 @@ namespace VerifyEmailForgotPassword.Controllers
             var user = await _context.Users.FirstOrDefaultAsync(u => u.PasswordResetToken == request.Token);
             if (user == null || user.ResetTokenExpires < DateTime.Now)
             {
-                return BadRequest(new {message = "Invalid Token" });
+                return BadRequest(new { message = "Invalid Token" });
             }
 
             CreatePasswordHash(request.Password, out byte[] passwordHash, out byte[] passwordSalt);
@@ -811,14 +832,13 @@ namespace VerifyEmailForgotPassword.Controllers
             user.ResetTokenExpires = null;
             await _context.SaveChangesAsync();
 
-            return Ok(new {message = "Ok"});
+            return Ok(new { message = "Ok" });
         }
-
 
         private void SendEmail(string recipientEmail, string emailSubject, string emailText)
         {
             var email = new MimeMessage();
-                email.From.Add(MailboxAddress.Parse(_configuration.GetSection("Mail:From").Value));
+            email.From.Add(MailboxAddress.Parse(_configuration.GetSection("Mail:From").Value));
             email.To.Add(MailboxAddress.Parse(recipientEmail));
             email.Subject = emailSubject;
             email.Body = new TextPart(TextFormat.Html)
